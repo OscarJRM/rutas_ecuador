@@ -858,23 +858,100 @@
         }
 
         function filterCityList(showRouteOnly) {
-            const listContainer = document.getElementById('citiesList');
-            const items = listContainer.querySelectorAll('.city-item');
-            let visibleCount = 0;
+    const listContainer = document.getElementById('citiesList');
 
-            items.forEach(item => {
-                const cityId = parseInt(item.dataset.cityId);
-                const isInRoute = currentRoute && currentRoute.path && currentRoute.path.includes(cityId);
-                const shouldShow = !showRouteOnly || isInRoute;
+    // Si estamos filtrando y no hay ruta actual
+    if (showRouteOnly && (!currentRoute || !currentRoute.path || currentRoute.path.length === 0)) {
+        // Ocultar todas las ciudades
+        listContainer.querySelectorAll('.city-item').forEach(item => {
+            item.style.display = 'none';
+            item.classList.remove('active-route');
+        });
 
-                item.style.display = shouldShow ? 'flex' : 'none';
-                if (shouldShow) {
-                    visibleCount++;
-                    item.classList.toggle('active-route', isInRoute);
-                } else {
-                    item.classList.remove('active-route');
+        // Mostrar mensaje de que no hay ruta calculada
+        const existingMsg = listContainer.querySelector('.no-results-message');
+        if (!existingMsg) {
+            const p = document.createElement('p');
+            p.className = 'text-muted text-center mt-3 no-results-message';
+            p.textContent = 'No se ha calculado ninguna ruta aún.';
+            listContainer.appendChild(p);
+        }
+        return;
+    }
+
+    // Limpiar mensaje previo de "no hay ruta"
+    const noResultsMsg = listContainer.querySelector('.no-results-message');
+    if (noResultsMsg) noResultsMsg.remove();
+
+    if (showRouteOnly && currentRoute && currentRoute.path.length > 0) {
+        const items = listContainer.querySelectorAll('.city-item');
+
+        // Ocultar todas y quitar info previa
+        items.forEach(item => {
+            item.style.display = 'none';
+            item.classList.remove('active-route');
+            const orderBadge = item.querySelector('.order-badge');
+            if (orderBadge) orderBadge.remove();
+        });
+
+        // Eliminar info anterior si existe
+        const prevOrderInfo = listContainer.querySelector('.route-order-info');
+        if (prevOrderInfo) prevOrderInfo.remove();
+
+        // Insertar explicación del orden
+        const orderInfo = document.createElement('p');
+        orderInfo.className = 'text-info text-center mt-2 mb-3 route-order-info';
+        orderInfo.textContent = 'Las ciudades se muestran en el orden de la ruta calculada.';
+        listContainer.insertBefore(orderInfo, listContainer.firstChild);
+
+        // Mostrar y ordenar las ciudades según la ruta
+        currentRoute.path.forEach((cityId, index) => {
+            const item = listContainer.querySelector(`.city-item[data-city-id="${cityId}"]`);
+            if (item) {
+                item.style.display = 'flex';
+                item.classList.add('active-route');
+
+                let orderBadge = item.querySelector('.order-badge');
+                if (!orderBadge) {
+                    orderBadge = document.createElement('span');
+                    orderBadge.className = 'badge bg-primary rounded-pill me-2 order-badge';
+                    const textContainer = item.querySelector('div:first-child');
+                    textContainer.insertBefore(orderBadge, textContainer.firstChild);
                 }
-            });
+                orderBadge.textContent = index + 1;
+
+                listContainer.insertBefore(item, orderInfo.nextSibling);
+            }
+        });
+    } else {
+        // Mostrar todas las ciudades ordenadas alfabéticamente
+        const items = listContainer.querySelectorAll('.city-item');
+
+        const orderInfo = listContainer.querySelector('.route-order-info');
+        if (orderInfo) orderInfo.remove();
+
+        items.forEach(item => {
+            item.style.display = 'flex';
+
+            const orderBadge = item.querySelector('.order-badge');
+            if (orderBadge) orderBadge.remove();
+
+            const cityId = parseInt(item.dataset.cityId);
+            const isInRoute = currentRoute && currentRoute.path && currentRoute.path.includes(cityId);
+            item.classList.toggle('active-route', isInRoute);
+        });
+
+        // Reordenar alfabéticamente
+        const sortedItems = Array.from(items).sort((a, b) => {
+            const textA = a.querySelector('div:first-child span:first-child').textContent;
+            const textB = b.querySelector('div:first-child span:first-child').textContent;
+            return textA.localeCompare(textB);
+        });
+
+        sortedItems.forEach(item => listContainer.appendChild(item));
+    }
+}
+
 
             const noResultsMsg = listContainer.querySelector('.no-results-message');
             if (visibleCount === 0 && items.length > 0) {
@@ -887,8 +964,7 @@
             } else if (noResultsMsg) {
                 noResultsMsg.remove();
             }
-        }
-
+        
         async function calculateRoute() {
             const startId = document.getElementById('startCity').value;
             const endId = document.getElementById('endCity').value;
