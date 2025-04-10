@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rutas Ecuador - Mapa Interactivo Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary-color: #007bff; /* Azul Bootstrap estándar */
+            --primary-hover: #0056b3;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --success-hover: #1e7e34;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --dark-text: #343a40;
+            --light-gray: #e9ecef;
+            --border-radius: 0.5rem;
+            --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            --box-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--dark-text);
+            scroll-behavior: smooth;
+        }
+
+        .container {
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        header {
+            padding: 2rem 0;
+            margin-bottom: 2rem !important; /* Aumentar margen */
+            background: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            animation: slideDown 0.6s ease-out;
+        }
+
+        header h1 {
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+        header .lead {
+            color: rgba(255, 255, 255, 0.8) !important; /* !important para sobreescribir text-muted */
+        }
+
+        #map {
+            height: 600px; /* Altura mantenida */
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow-sm);
+            border: 1px solid var(--light-gray);
+            animation: zoomIn 0.7s ease-out 0.2s backwards; /* Delay para aparecer después del header */
+        }
+
+        .card {
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow-sm);
+            border: none; /* Quitar borde por defecto */
+            background-color: white;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: fadeInUp 0.8s ease-out 0.3s backwards; /* Delay */
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--box-shadow);
+        }
+
+        .card-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            border-bottom: 1px solid var(--light-gray);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            border-radius: var(--border-radius);
+            font-weight: 400; /* Más legible */
+            padding: 0.6rem 1rem;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .btn-primary:hover {
+             background-color: var(--primary-hover);
+             border-color: var(--primary-hover);
+             transform: scale(1.03);
+        }
+         .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        .btn-success:hover {
+             background-color: var(--success-hover);
+             border-color: var(--success-hover);
+             transform: scale(1.03);
+        }
+
+        .form-label {
+            font-weight: 400;
+            color: var(--secondary-color);
+        }
+
+        .form-select, .form-control {
+            border-radius: var(--border-radius);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .form-select:focus, .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .city-item {
+            transition: all 0.3s ease;
+            border-radius: var(--border-radius) !important; /* Bootstrap a veces interfiere */
+            margin-bottom: 5px;
+            cursor: pointer;
+            background-color: white;
+            border: 1px solid var(--light-gray);
+        }
+
+        .city-item:hover {
+            background-color: var(--light-bg);
+            transform: translateX(8px) scale(1.02);
+            box-shadow: var(--box-shadow-sm);
+            border-left: 4px solid var(--primary-color);
+        }
+        .city-item.active-route {
+             background-color: #e7f3ff; /* Un azul muy claro */
+             font-weight: 600;
+             border-left: 4px solid var(--primary-color);
+        }
+
+        .algorithm-badge {
+            font-size: 0.8rem;
+            padding: 0.4em 0.7em;
+        }
+
+        /* Estilos para pestañas */
+        .nav-tabs {
+            border-bottom: 1px solid var(--light-gray);
+        }
+        .nav-tabs .nav-link {
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+            color: var(--secondary-color);
+            transition: all 0.3s ease;
+        }
+         .nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            background-color: white; /* Fondo claro para pestaña activa */
+            border-color: var(--light-gray) var(--light-gray) white; /* Conecta con el fondo */
+            font-weight: 600;
+         }
+         .nav-tabs .nav-link:hover {
+             border-color: var(--light-gray);
+             background-color: var(--light-bg);
+         }
+
+        /* Estilos para marcadores personalizados */
+        .map-marker-icon {
+            text-align: center;
+            line-height: 20px; /* Ajustar según tamaño */
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.5);
+            font-size: 14px;
+        }
+        .start-marker-icon {
+            background-color: var(--success-color);
+        }
+        .end-marker-icon {
+             background-color: #dc3545; /* Rojo Bootstrap */
+        }
+        .city-marker-icon {
+            background-color: var(--primary-color);
+             opacity: 0.8;
+        }
+
+        /* Animaciones */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        /* Animación para el panel de resultados */
+        #routeResults {
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.5s ease-out, opacity 0.5s ease-out, margin-top 0.5s ease-out;
+        }
+        #routeResults.show {
+            max-height: 300px; /* Suficiente para el contenido */
+            opacity: 1;
+            margin-top: 1rem; /* Añadir espacio cuando aparece */
+        }
+
+        /* Estilo para Toast (Notificaciones) */
+        .toast-container {
+            z-index: 1100; /* Asegurar que esté encima de otros elementos */
+        }
+        .toast {
+             border-radius: var(--border-radius);
+             box-shadow: var(--box-shadow);
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <svg class="bd-placeholder-img rounded me-2" width="20" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="xMidYMid slice" focusable="false"><rect width="100%" height="100%" fill="#007aff"></rect></svg>
+                <strong class="me-auto" id="toastTitle">Notificación</strong>
+                <small>Ahora</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="toastBody">
+                Mensaje del toast.
+            </div>
+        </div>
+    </div>
+
+
+    <div class="container py-4">
+        <header class="mb-4 text-center">
+            <h1 class="display-4">🛣️ Sistema de Rutas Ecuador Pro</h1>
+            <p class="lead">Visualiza y calcula rutas óptimas entre ciudades con estilo</p>
+        </header>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card mb-4"> <div class="card-body">
+                        <h5 class="card-title">📌 Panel de Control</h5>
+
+                        <form id="routeForm" class="mb-4">
+                            <div class="mb-3">
+                                <label for="startCity" class="form-label">Ciudad de Origen</label>
+                                <select class="form-select" id="startCity" required>
+                                    <option value="">Seleccione...</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="endCity" class="form-label">Ciudad de Destino</label>
+                                <select class="form-select" id="endCity" required>
+                                    <option value="">Seleccione...</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="algorithm" class="form-label">Algoritmo de Búsqueda</label>
+                                <select class="form-select" id="algorithm">
+                                    <option value="dijkstra">Dijkstra (Más corta)</option>
+                                    <option value="astar">A* (Balanceado)</option>
+                                    <option value="greedy">Búsqueda Voraz (Rápido)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" id="calculateRouteBtn">
+                                <span class="spinner-border spinner-border-sm d-none me-1" role="status" aria-hidden="true"></span>
+                                🚀 Calcular Ruta
+                            </button>
+                        </form>
+
+                        <div id="routeResults"> <h6 class="d-flex justify-content-between align-items-center pt-2 border-top">
+                                 <span>📊 Resultados</span>
+                                 <span id="algorithmBadge" class="badge bg-info algorithm-badge">Dijkstra</span>
+                             </h6>
+                             <div class="mb-2">
+                                 <strong>Distancia total:</strong>
+                                 <span id="totalDistance" class="text-primary fw-bold">0</span> km
+                             </div>
+                             <div class="mb-3">
+                                 <strong>Ciudades en ruta:</strong>
+                                 <span id="citiesCount" class="text-primary fw-bold">0</span>
+                             </div>
+                             <div class="alert alert-info py-2 mb-0">
+                                 <small>Haz clic en una ciudad (mapa o lista) para más detalles.</small>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">➕ Agregar Nueva Ciudad</h5>
+                        <form id="addCityForm">
+                            <div class="mb-3">
+                                <label for="cityName" class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="cityName" required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col">
+                                    <label for="latitude" class="form-label">Latitud</label>
+                                    <input type="number" step="0.000001" class="form-control" id="latitude" required>
+                                </div>
+                                <div class="col">
+                                    <label for="longitude" class="form-label">Longitud</label>
+                                    <input type="number" step="0.000001" class="form-control" id="longitude" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100" id="addCityBtn">
+                                 <span class="spinner-border spinner-border-sm d-none me-1" role="status" aria-hidden="true"></span>
+                                 💾 Guardar Ciudad
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card h-100"> <div class="card-body d-flex flex-column">
+                        <ul class="nav nav-tabs mb-3" id="mapTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="map-tab" data-bs-toggle="tab"
+                                        data-bs-target="#mapTab" type="button" role="tab">
+                                    🗺️ Mapa Interactivo
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#listTab"
+                                        type="button" role="tab">
+                                    📋 Lista de Ciudades
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content flex-grow-1"> <div class="tab-pane fade show active" id="mapTab" role="tabpanel">
+                                <div id="map"></div>
+                            </div>
+
+                            <div class="tab-pane fade" id="listTab" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0">Ciudades Disponibles</h6>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="showRouteOnly">
+                                        <label class="form-check-label" for="showRouteOnly">Mostrar solo ruta</label>
+                                    </div>
+                                </div>
+                                <div class="list-group overflow-auto" style="max-height: 520px;" id="citiesList">
+                                    <p id="citiesPlaceholder" class="text-muted text-center mt-3">Cargando ciudades...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="cityModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered"> <div class="modal-content" style="border-radius: var(--border-radius);">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cityModalTitle">Ciudad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>ID:</strong> <span id="cityModalId"></span></p>
+                    <p><strong>Coordenadas:</strong> <span id="cityModalCoords"></span></p>
+                    <div id="cityModalRouteInfo" class="mt-3 pt-3 border-top"> <p class="mb-0"><strong>Distancia desde origen (en ruta):</strong> <span id="cityModalDistance" class="fw-bold text-primary">--</span> km</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Mapa y variables globales
+        const map = L.map('map', { zoomControl: false }).setView([-1.8312, -78.1834], 7); // Ecuador center
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { // Usando un tile layer diferente (HOT)
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/" target="_blank">Humanitarian OpenStreetMap Team</a> hosted by <a href="https://openstreetmap.fr/" target="_blank">OpenStreetMap France</a>'
+        }).addTo(map);
+        L.control.zoom({ position: 'topright' }).addTo(map); // Posición del zoom
+
+        let routeLayer = L.layerGroup().addTo(map);
+        let cityMarkers = {}; // Almacena marcadores L.marker
+        let cityData = {}; // Almacena datos de ciudades {id: {nombre, lat, lon,...}}
+        let currentRoute = null; // Almacena los datos de la última ruta calculada
+        const toastElement = document.getElementById('liveToast');
+        const toast = new bootstrap.Toast(toastElement, { delay: 4000 }); // Inicializar Toast
+
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCities();
+            setupEventListeners();
+             // Forzar redibujo del mapa cuando se muestra la pestaña
+             document.getElementById('map-tab').addEventListener('shown.bs.tab', function () {
+                map.invalidateSize();
+            });
+        });
+
+        function showToast(title, message, type = 'info') {
+            const toastTitle = document.getElementById('toastTitle');
+            const toastBody = document.getElementById('toastBody');
+            const toastHeader = toastElement.querySelector('.toast-header');
+            const toastIcon = toastHeader.querySelector('svg rect');
+
+            toastTitle.textContent = title;
+            toastBody.textContent = message;
+
+            // Reset classes
+            toastHeader.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'text-white');
+            toastIcon.setAttribute('fill', '#007aff'); // Default blue
+
+             if (type === 'success') {
+                toastHeader.classList.add('bg-success', 'text-white');
+                toastIcon.setAttribute('fill', '#ffffff');
+            } else if (type === 'error') {
+                toastHeader.classList.add('bg-danger', 'text-white');
+                toastIcon.setAttribute('fill', '#ffffff');
+            } else if (type === 'warning') {
+                 toastHeader.classList.add('bg-warning', 'text-dark'); // Warning usa texto oscuro
+                 toastIcon.setAttribute('fill', '#343a40');
+            } else { // Info or default
+                toastHeader.classList.add('bg-info', 'text-white');
+                 toastIcon.setAttribute('fill', '#ffffff');
+            }
+
+            toast.show();
+        }
+
+        function setLoadingState(buttonId, isLoading) {
+            const button = document.getElementById(buttonId);
+            const spinner = button.querySelector('.spinner-border');
+            if (isLoading) {
+                button.disabled = true;
+                spinner.classList.remove('d-none');
+            } else {
+                button.disabled = false;
+                spinner.classList.add('d-none');
+            }
+        }
+
+
+        function setupEventListeners() {
+            // Formulario de ruta
+            document.getElementById('routeForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                setLoadingState('calculateRouteBtn', true);
+                try {
+                    await calculateRoute();
+                } finally {
+                     setLoadingState('calculateRouteBtn', false);
+                }
+            });
+
+            // Formulario para agregar ciudad
+            document.getElementById('addCityForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                 setLoadingState('addCityBtn', true);
+                 try {
+                    await addNewCity();
+                 } finally {
+                     setLoadingState('addCityBtn', false);
+                 }
+            });
+
+            // Checkbox para mostrar solo ruta
+            document.getElementById('showRouteOnly').addEventListener('change', (e) => {
+                filterCityList(e.target.checked);
+                highlightRouteMarkers(currentRoute ? currentRoute.path : []);
+            });
+        }
+
+        async function loadCities() {
+             document.getElementById('citiesPlaceholder')?.remove(); // Remover placeholder si existe
+            try {
+                const response = await fetch('http://127.0.0.1:5050/api/cities');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const cities = await response.json();
+
+                cityData = {}; // Reset city data
+                cities.forEach(city => cityData[city.id] = city);
+
+                populateCityDropdowns(cities);
+                displayCitiesOnMap(cities);
+                renderCityList(cities);
+                 // Quitar el filtro si estaba activo
+                document.getElementById('showRouteOnly').checked = false;
+                filterCityList(false);
+
+            } catch (error) {
+                console.error('Error al cargar ciudades:', error);
+                showToast('Error de Carga', `No se pudieron cargar las ciudades. ${error.message}`, 'error');
+                 document.getElementById('citiesList').innerHTML = '<p class="text-danger text-center mt-3">Error al cargar ciudades.</p>';
+            }
+        }
+
+        function populateCityDropdowns(cities) {
+            const startSelect = document.getElementById('startCity');
+            const endSelect = document.getElementById('endCity');
+
+            startSelect.innerHTML = '<option value="" disabled selected>Seleccione origen...</option>';
+            endSelect.innerHTML = '<option value="" disabled selected>Seleccione destino...</option>';
+
+            // Ordenar ciudades alfabéticamente para los dropdowns
+            const sortedCities = [...cities].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+            sortedCities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city.id;
+                option.textContent = city.nombre;
+                startSelect.appendChild(option.cloneNode(true));
+                endSelect.appendChild(option);
+            });
+        }
+
+         function createMarkerIcon(type = 'city', letter = '') {
+            let className = 'map-marker-icon ';
+            let iconSize = [24, 24]; // Tamaño base
+
+            switch (type) {
+                case 'start':
+                    className += 'start-marker-icon';
+                     letter = '🏁'; // Bandera de inicio (o usa 'S')
+                     iconSize = [30, 30]; // Más grande
+                    break;
+                case 'end':
+                    className += 'end-marker-icon';
+                    letter = '📍'; // Pin de destino (o usa 'E')
+                    iconSize = [30, 30]; // Más grande
+                    break;
+                default: // 'city'
+                     className += 'city-marker-icon';
+                    // Podrías usar las iniciales si son pocas ciudades, o un punto
+                     letter = '●'; // Punto genérico
+            }
+
+            return L.divIcon({
+                className: className,
+                html: `<span>${letter}</span>`,
+                iconSize: iconSize,
+                iconAnchor: [iconSize[0] / 2, iconSize[1]], // Ancla en el centro inferior
+                popupAnchor: [0, -iconSize[1] / 1.5] // Ancla del popup un poco arriba
+            });
+        }
+
+        function displayCitiesOnMap(cities) {
+            // Limpiar marcadores anteriores excepto la capa de ruta si existe
+            Object.values(cityMarkers).forEach(marker => marker.remove());
+            cityMarkers = {};
+
+            cities.forEach(city => {
+                const marker = L.marker([city.latitud, city.longitud], {
+                    title: city.nombre,
+                    icon: createMarkerIcon('city') // Icono por defecto
+                }).bindPopup(`
+                    <b>${city.nombre}</b><br>
+                    ID: ${city.id}<br>
+                    <small>Lat: ${city.latitud.toFixed(4)}, Lon: ${city.longitud.toFixed(4)}</small>
+                `);
+
+                marker.on('click', () => showCityDetails(city.id)); // Pasar ID
+                marker.addTo(map); // Agregar al mapa directamente
+                cityMarkers[city.id] = marker;
+            });
+        }
+
+        function renderCityList(cities) {
+            const listContainer = document.getElementById('citiesList');
+            listContainer.innerHTML = ''; // Limpiar contenido anterior
+
+             if (cities.length === 0) {
+                 listContainer.innerHTML = '<p class="text-muted text-center mt-3">No hay ciudades disponibles.</p>';
+                 return;
+             }
+
+            // Ordenar alfabéticamente para la lista
+             const sortedCities = [...cities].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+            sortedCities.forEach(city => {
+                const item = document.createElement('button');
+                item.className = 'list-group-item list-group-item-action city-item d-flex justify-content-between align-items-center';
+                item.dataset.cityId = city.id; // Guardar ID para referencia
+                item.innerHTML = `
+                    <span>${city.nombre}</span>
+                    <span class="badge bg-secondary rounded-pill">ID: ${city.id}</span>
+                `;
+
+                item.addEventListener('click', () => {
+                    if (cityMarkers[city.id]) {
+                         map.setView([city.latitud, city.longitud], 12, { animate: true }); // Zoom más cercano y animado
+                         cityMarkers[city.id].openPopup();
+                    }
+                    showCityDetails(city.id); // Pasar ID
+
+                     // Activar visualmente el item seleccionado
+                     document.querySelectorAll('#citiesList .city-item').forEach(el => el.classList.remove('active'));
+                     item.classList.add('active');
+                });
+
+                listContainer.appendChild(item);
+            });
+        }
+
+        function filterCityList(showRouteOnly) {
+            const listContainer = document.getElementById('citiesList');
+             const items = listContainer.querySelectorAll('.city-item');
+             let visibleCount = 0;
+
+             items.forEach(item => {
+                 const cityId = parseInt(item.dataset.cityId);
+                 const isInRoute = currentRoute && currentRoute.path && currentRoute.path.includes(cityId);
+                 const shouldShow = !showRouteOnly || isInRoute;
+
+                 item.style.display = shouldShow ? 'flex' : 'none';
+                 if (shouldShow) {
+                    visibleCount++;
+                    // Resaltar si está en la ruta
+                     item.classList.toggle('active-route', isInRoute);
+                 } else {
+                     item.classList.remove('active-route');
+                 }
+             });
+
+              // Mostrar mensaje si no hay ciudades visibles
+              const noResultsMsg = listContainer.querySelector('.no-results-message');
+              if (visibleCount === 0 && items.length > 0) {
+                  if (!noResultsMsg) {
+                      const p = document.createElement('p');
+                      p.className = 'text-muted text-center mt-3 no-results-message';
+                      p.textContent = showRouteOnly ? 'Ninguna ciudad de la ruta coincide.' : 'No hay ciudades para mostrar.';
+                      listContainer.appendChild(p);
+                  }
+              } else if (noResultsMsg) {
+                  noResultsMsg.remove();
+              }
+        }
+
+        async function calculateRoute() {
+            const startId = document.getElementById('startCity').value;
+            const endId = document.getElementById('endCity').value;
+            const algorithm = document.getElementById('algorithm').value;
+            const resultsPanel = document.getElementById('routeResults');
+
+            // Resetear ruta anterior y resultados visuales
+            routeLayer.clearLayers();
+            currentRoute = null;
+            resultsPanel.classList.remove('show');
+            highlightRouteMarkers([]); // Quitar resaltado de marcadores
+             filterCityList(document.getElementById('showRouteOnly').checked); // Actualizar lista
+
+
+            if (!startId || !endId) {
+                showToast('Entrada Inválida', 'Por favor seleccione ciudades de origen y destino.', 'warning');
+                return;
+            }
+             if (startId === endId) {
+                 showToast('Entrada Inválida', 'La ciudad de origen y destino no pueden ser la misma.', 'warning');
+                 return;
+            }
+
+            try {
+                const response = await fetch(`http://127.0.0.1:5050/api/route?start=${startId}&end=${endId}&algorithm=${algorithm}`);
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `Error ${response.status}: No se pudo calcular la ruta`);
+                }
+
+                currentRoute = data; // Guardar ruta actual
+                displayRoute(data);
+
+                // Actualizar UI de resultados
+                document.getElementById('totalDistance').textContent = data.cost.toFixed(2); // Mostrar con 2 decimales
+                document.getElementById('citiesCount').textContent = data.cities.length;
+                const algoText = algorithm === 'dijkstra' ? 'Dijkstra' : algorithm === 'astar' ? 'A*' : 'Voraz';
+                document.getElementById('algorithmBadge').textContent = algoText;
+                resultsPanel.classList.add('show'); // Mostrar panel con animación
+
+                // Volver a aplicar filtros y resaltados
+                filterCityList(document.getElementById('showRouteOnly').checked);
+                highlightRouteMarkers(data.path);
+                 showToast('Ruta Calculada', `Se encontró una ruta usando ${algoText}.`, 'success');
+
+            } catch (error) {
+                console.error('Error al calcular ruta:', error);
+                showToast('Error de Ruta', error.message, 'error');
+                 resultsPanel.classList.remove('show');
+                 // Volver a mostrar todos los marcadores base si la ruta falla
+                 displayCitiesOnMap(Object.values(cityData));
+            }
+        }
+
+         function highlightRouteMarkers(cityIdsInRoute) {
+             Object.entries(cityMarkers).forEach(([id, marker]) => {
+                 const cityIdNum = parseInt(id);
+                 const isInRoute = cityIdsInRoute.includes(cityIdNum);
+
+                 // Cambiar opacidad o estilo para resaltar
+                 marker.setOpacity(isInRoute ? 1.0 : 0.5); // Marcadores en ruta más opacos
+
+                  // Si no se está mostrando solo la ruta, todos deben ser visibles
+                 if (!document.getElementById('showRouteOnly').checked) {
+                      marker.setOpacity(1.0);
+                 }
+                 // Podrías cambiar el icono también si quisieras
+                 // marker.setIcon(isInRoute ? createMarkerIcon(...) : createMarkerIcon(...));
+             });
+         }
+
+
+        function displayRoute(routeData) {
+             routeLayer.clearLayers(); // Limpiar capa de ruta (líneas, marcadores especiales)
+
+             if (!routeData || !routeData.cities || routeData.cities.length === 0) {
+                console.warn("No hay datos de ruta para mostrar.");
+                 // Volver a mostrar todos los marcadores base
+                 displayCitiesOnMap(Object.values(cityData));
+                 return;
+            }
+
+            const routeCoords = routeData.cities.map(city => [city.latitud, city.longitud]);
+
+             // Dibujar la línea de la ruta
+            const routeLine = L.polyline(routeCoords, {
+                color: 'var(--primary-color)',
+                weight: 5,
+                opacity: 0.8, // Un poco más opaco
+                smoothFactor: 1
+            }).addTo(routeLayer);
+
+            // Agregar marcadores de todas las ciudades (para popups) y resaltar los de la ruta
+             displayCitiesOnMap(Object.values(cityData)); // Redibuja todos los marcadores base
+             highlightRouteMarkers(routeData.path); // Resalta los que están en la ruta
+
+
+             // Marcadores especiales para inicio y fin (sobre los marcadores base)
+            const startCity = routeData.cities[0];
+            const endCity = routeData.cities[routeData.cities.length - 1];
+
+             if (startCity) {
+                L.marker([startCity.latitud, startCity.longitud], {
+                    icon: createMarkerIcon('start'),
+                    zIndexOffset: 1000 // Asegurar que esté encima
+                }).bindPopup(`<b>ORIGEN:</b> ${startCity.nombre}`).addTo(routeLayer);
+            }
+
+             if (endCity) {
+                 L.marker([endCity.latitud, endCity.longitud], {
+                    icon: createMarkerIcon('end'),
+                    zIndexOffset: 1000 // Asegurar que esté encima
+                }).bindPopup(`<b>DESTINO:</b> ${endCity.nombre}`).addTo(routeLayer);
+            }
+
+            // Ajustar vista del mapa para mostrar toda la ruta
+            if (routeLine.getBounds().isValid()) {
+                 map.flyToBounds(routeLine.getBounds(), { padding: [60, 60], duration: 1 }); // Vuelo animado y más padding
+            }
+        }
+
+        async function addNewCity() {
+            const name = document.getElementById('cityName').value.trim();
+            const latStr = document.getElementById('latitude').value;
+            const lngStr = document.getElementById('longitude').value;
+
+            if (!name || !latStr || !lngStr) {
+                showToast('Datos Incompletos', 'Por favor complete todos los campos para agregar una ciudad.', 'warning');
+                return;
+            }
+
+             const lat = parseFloat(latStr);
+             const lng = parseFloat(lngStr);
+
+              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                 showToast('Datos Inválidos', 'La latitud (-90 a 90) o longitud (-180 a 180) no son válidas.', 'warning');
+                 return;
+             }
+
+            try {
+                const response = await fetch('http://127.0.0.1:5050/api/cities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre: name, latitud: lat, longitud: lng })
+                });
+
+                const newCityData = await response.json();
+
+                 if (!response.ok || newCityData.error) {
+                     throw new Error(newCityData.error || `Error ${response.status}: No se pudo agregar la ciudad`);
+                 }
+
+                showToast('Éxito', `Ciudad "${newCityData.nombre}" agregada con ID: ${newCityData.id}.`, 'success');
+                document.getElementById('addCityForm').reset();
+                await loadCities(); // Recargar todo para reflejar el cambio
+
+            } catch (error) {
+                console.error('Error al agregar ciudad:', error);
+                showToast('Error al Agregar', error.message, 'error');
+            }
+        }
+
+         function showCityDetails(cityId) {
+             const city = cityData[cityId];
+             if (!city) {
+                 console.warn("Detalles solicitados para ciudad no encontrada:", cityId);
+                 return;
+             }
+
+             document.getElementById('cityModalTitle').textContent = city.nombre;
+             document.getElementById('cityModalId').textContent = city.id;
+             document.getElementById('cityModalCoords').textContent =
+                 `${city.latitud.toFixed(6)}, ${city.longitud.toFixed(6)}`;
+
+             const routeInfoDiv = document.getElementById('cityModalRouteInfo');
+             const distanceSpan = document.getElementById('cityModalDistance');
+             let distance = 0;
+             let isInCurrentRoute = false;
+
+             if (currentRoute && currentRoute.path && currentRoute.cities) {
+                 const path = currentRoute.path;
+                 const index = path.indexOf(city.id);
+
+                 if (index !== -1) { // La ciudad está en la ruta actual
+                    isInCurrentRoute = true;
+                     if (index > 0) {
+                         // Calcular distancia acumulada hasta esta ciudad
+                         for (let i = 0; i < index; i++) {
+                             const currentCityData = cityData[path[i]];
+                             const nextCityData = cityData[path[i+1]];
+                              if (currentCityData && nextCityData) {
+                                 distance += haversineDistance(
+                                     currentCityData.latitud, currentCityData.longitud,
+                                     nextCityData.latitud, nextCityData.longitud
+                                 );
+                             }
+                         }
+                     }
+                     distanceSpan.textContent = distance.toFixed(2);
+                 }
+             }
+
+             // Mostrar u ocultar la sección de información de ruta
+             if (isInCurrentRoute) {
+                 routeInfoDiv.style.display = 'block'; // Mostrar
+             } else {
+                 routeInfoDiv.style.display = 'none'; // Ocultar
+                 distanceSpan.textContent = '--';
+             }
+
+             // Mostrar modal
+             const modal = bootstrap.Modal.getInstance(document.getElementById('cityModal')) || new bootstrap.Modal(document.getElementById('cityModal'));
+             modal.show();
+         }
+
+
+        // Función auxiliar Haversine (igual que antes)
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radio de la Tierra en km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Distancia en km
+        }
+    </script>
+</body>
+
+</html>
