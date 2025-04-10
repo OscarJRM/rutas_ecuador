@@ -241,6 +241,39 @@ def handle_cities():
             'longitud': longitud
         }), 201
 
+@app.route('/api/cities/<int:city_id>', methods=['PUT'])
+def update_city(city_id):
+    """Actualiza la información de una ciudad existente"""
+    conn = create_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    data = request.get_json()
+    nombre = data.get('nombre')
+    latitud = data.get('latitud')
+    longitud = data.get('longitud')
+    
+    try:
+        cursor.execute(
+            "UPDATE ciudades SET nombre = %s, latitud = %s, longitud = %s WHERE id = %s RETURNING id, nombre, latitud, longitud",
+            (nombre, latitud, longitud, city_id)
+        )
+        updated_city = cursor.fetchone()
+        conn.commit()
+        
+        if updated_city:
+            # Convertir a float para asegurar el formato correcto en la respuesta
+            updated_city['latitud'] = float(updated_city['latitud'])
+            updated_city['longitud'] = float(updated_city['longitud'])
+            return jsonify(updated_city)
+        else:
+            return jsonify({'error': f'Ciudad con ID {city_id} no encontrada'}), 404
+            
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': f'Error al actualizar la ciudad: {str(e)}'}), 500
+    finally:
+        conn.close()
+
 @app.route('/api/route', methods=['GET'])
 def calculate_route():
     """Calcula la ruta entre dos ciudades usando el algoritmo especificado"""

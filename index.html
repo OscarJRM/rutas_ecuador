@@ -363,6 +363,44 @@
         </div>
     </div>
 
+    <!-- Añadir un nuevo modal para editar ciudades -->
+    <div class="modal fade" id="editCityModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: var(--border-radius);">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editCityModalTitle">Editar Ciudad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCityForm">
+                        <input type="hidden" id="editCityId">
+                        <div class="mb-3">
+                            <label for="editCityName" class="form-label">Nombre</label>
+                            <input type="text" class="form-control" id="editCityName" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col">
+                                <label for="editLatitude" class="form-label">Latitud</label>
+                                <input type="number" step="0.000001" class="form-control" id="editLatitude" required>
+                            </div>
+                            <div class="col">
+                                <label for="editLongitude" class="form-label">Longitud</label>
+                                <input type="number" step="0.000001" class="form-control" id="editLongitude" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="saveCityEditBtn">
+                        <span class="spinner-border spinner-border-sm d-none me-1" role="status" aria-hidden="true"></span>
+                        Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="cityModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered"> <div class="modal-content" style="border-radius: var(--border-radius);">
                 <div class="modal-header">
@@ -480,6 +518,16 @@
                 filterCityList(e.target.checked);
                 highlightRouteMarkers(currentRoute ? currentRoute.path : []);
             });
+
+            // Evento para guardar edición de ciudad
+            document.getElementById('saveCityEditBtn').addEventListener('click', async () => {
+                setLoadingState('saveCityEditBtn', true);
+                try {
+                    await updateCity();
+                } finally {
+                    setLoadingState('saveCityEditBtn', false);
+                }
+            });
         }
 
         async function loadCities() {
@@ -589,24 +637,40 @@
              const sortedCities = [...cities].sort((a, b) => a.nombre.localeCompare(b.nombre));
 
             sortedCities.forEach(city => {
-                const item = document.createElement('button');
+                const item = document.createElement('div');
                 item.className = 'list-group-item list-group-item-action city-item d-flex justify-content-between align-items-center';
                 item.dataset.cityId = city.id; // Guardar ID para referencia
                 item.innerHTML = `
-                    <span>${city.nombre}</span>
-                    <span class="badge bg-secondary rounded-pill">ID: ${city.id}</span>
+                    <div>
+                        <span>${city.nombre}</span>
+                        <span class="badge bg-secondary rounded-pill ms-2">ID: ${city.id}</span>
+                    </div>
+                    <div class="city-actions">
+                        <button class="btn btn-sm btn-outline-info city-view-btn" title="Ver ciudad"><i>👁️</i></button>
+                        <button class="btn btn-sm btn-outline-primary city-edit-btn ms-1" title="Editar ciudad"><i>✏️</i></button>
+                    </div>
                 `;
 
-                item.addEventListener('click', () => {
+                // Botón para ver ciudad
+                const viewBtn = item.querySelector('.city-view-btn');
+                viewBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     if (cityMarkers[city.id]) {
-                         map.setView([city.latitud, city.longitud], 12, { animate: true }); // Zoom más cercano y animado
+                         map.setView([city.latitud, city.longitud], 12, { animate: true });
                          cityMarkers[city.id].openPopup();
                     }
-                    showCityDetails(city.id); // Pasar ID
+                    showCityDetails(city.id);
 
                      // Activar visualmente el item seleccionado
                      document.querySelectorAll('#citiesList .city-item').forEach(el => el.classList.remove('active'));
                      item.classList.add('active');
+                });
+
+                // Botón para editar ciudad
+                const editBtn = item.querySelector('.city-edit-btn');
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openEditCityModal(city);
                 });
 
                 listContainer.appendChild(item);
@@ -863,6 +927,71 @@
              modal.show();
          }
 
+        function openEditCityModal(city) {
+            // Llenar el formulario con los datos actuales
+            document.getElementById('editCityId').value = city.id;
+            document.getElementById('editCityName').value = city.nombre;
+            document.getElementById('editLatitude').value = city.latitud;
+            document.getElementById('editLongitude').value = city.longitud;
+            
+            // Mostrar el modal
+            const editModal = new bootstrap.Modal(document.getElementById('editCityModal'));
+            editModal.show();
+        }
+
+        async function updateCity() {
+            const cityId = document.getElementById('editCityId').value;
+            const name = document.getElementById('editCityName').value.trim();
+            const latStr = document.getElementById('editLatitude').value;
+            const lngStr = document.getElementById('editLongitude').value;
+            
+            if (!name || !latStr || !lngStr) {
+                showToast('Datos Incompletos', 'Por favor complete todos los campos para actualizar la ciudad.', 'warning');
+                return;
+            }
+            
+            const lat = parseFloat(latStr);
+            const lng = parseFloat(lngStr);
+            
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                showToast('Datos Inválidos', 'La latitud (-90 a 90) o longitud (-180 a 180) no son válidas.', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:5050/api/cities/${cityId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre: name, latitud: lat, longitud: lng })
+                });
+                
+                const updatedCity = await response.json();
+                
+                if (!response.ok || updatedCity.error) {
+                    throw new Error(updatedCity.error || `Error ${response.status}: No se pudo actualizar la ciudad`);
+                }
+                
+                // Actualizar datos localmente
+                cityData[cityId] = updatedCity;
+                
+                // Cerrar modal
+                bootstrap.Modal.getInstance(document.getElementById('editCityModal')).hide();
+                
+                // Actualizar UI
+                await loadCities(); // Recargar ciudades para reflejar cambios
+                
+                // Actualizar ruta si existe y contiene esta ciudad
+                if (currentRoute && currentRoute.path && currentRoute.path.includes(parseInt(cityId))) {
+                    await calculateRoute(); // Recalcular ruta con nuevas coordenadas
+                }
+                
+                showToast('Éxito', `Ciudad "${updatedCity.nombre}" actualizada correctamente.`, 'success');
+                
+            } catch (error) {
+                console.error('Error al actualizar ciudad:', error);
+                showToast('Error al Actualizar', error.message, 'error');
+            }
+        }
 
         // Función auxiliar Haversine (igual que antes)
         function haversineDistance(lat1, lon1, lat2, lon2) {
