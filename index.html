@@ -598,8 +598,20 @@
 
             // Checkbox para mostrar solo ruta
             document.getElementById('showRouteOnly').addEventListener('change', (e) => {
-                filterCityList(e.target.checked);
-                highlightRouteMarkers(currentRoute ? currentRoute.path : []);
+                const showRouteOnly = e.target.checked;
+                filterCityList(showRouteOnly);
+                
+                // Aplicar filtro en el mapa también
+                if (currentRoute && currentRoute.path) {
+                    highlightRouteMarkers(currentRoute.path);
+                } else {
+                    highlightRouteMarkers([]);  // Pasar array vacío si no hay ruta
+                    
+                    // Si se activa "mostrar solo ruta" pero no hay ruta calculada
+                    if (showRouteOnly) {
+                        showToast('Información', 'No hay ninguna ruta calculada para mostrar.', 'info');
+                    }
+                }
             });
 
             // Evento para guardar edición de ciudad
@@ -780,36 +792,56 @@
 
         function filterCityList(showRouteOnly) {
             const listContainer = document.getElementById('citiesList');
-             const items = listContainer.querySelectorAll('.city-item');
-             let visibleCount = 0;
+            const items = listContainer.querySelectorAll('.city-item');
+            let visibleCount = 0;
 
-             items.forEach(item => {
-                 const cityId = parseInt(item.dataset.cityId);
-                 const isInRoute = currentRoute && currentRoute.path && currentRoute.path.includes(cityId);
-                 const shouldShow = !showRouteOnly || isInRoute;
+            // Si estamos filtrando y no hay ruta actual
+            if (showRouteOnly && (!currentRoute || !currentRoute.path || currentRoute.path.length === 0)) {
+                // Ocultar todas las ciudades
+                items.forEach(item => {
+                    item.style.display = 'none';
+                    item.classList.remove('active-route');
+                });
+                
+                // Mostrar mensaje de que no hay ruta calculada
+                const existingMsg = listContainer.querySelector('.no-results-message');
+                if (!existingMsg) {
+                    const p = document.createElement('p');
+                    p.className = 'text-muted text-center mt-3 no-results-message';
+                    p.textContent = 'No se ha calculado ninguna ruta aún.';
+                    listContainer.appendChild(p);
+                }
+                return;
+            }
 
-                 item.style.display = shouldShow ? 'flex' : 'none';
-                 if (shouldShow) {
+            // Procesar cada ciudad
+            items.forEach(item => {
+                const cityId = parseInt(item.dataset.cityId);
+                const isInRoute = currentRoute && currentRoute.path && currentRoute.path.includes(cityId);
+                const shouldShow = !showRouteOnly || isInRoute;
+
+                item.style.display = shouldShow ? 'flex' : 'none';
+                if (shouldShow) {
                     visibleCount++;
                     // Resaltar si está en la ruta
-                     item.classList.toggle('active-route', isInRoute);
-                 } else {
-                     item.classList.remove('active-route');
-                 }
-             });
+                    item.classList.toggle('active-route', isInRoute);
+                } else {
+                    item.classList.remove('active-route');
+                }
+            });
 
-              // Mostrar mensaje si no hay ciudades visibles
-              const noResultsMsg = listContainer.querySelector('.no-results-message');
-              if (visibleCount === 0 && items.length > 0) {
-                  if (!noResultsMsg) {
-                      const p = document.createElement('p');
-                      p.className = 'text-muted text-center mt-3 no-results-message';
-                      p.textContent = showRouteOnly ? 'Ninguna ciudad de la ruta coincide.' : 'No hay ciudades para mostrar.';
-                      listContainer.appendChild(p);
-                  }
-              } else if (noResultsMsg) {
-                  noResultsMsg.remove();
-              }
+            // Gestionar mensaje cuando no hay ciudades visibles
+            const noResultsMsg = listContainer.querySelector('.no-results-message');
+            if (visibleCount === 0 && items.length > 0) {
+                if (!noResultsMsg) {
+                    const p = document.createElement('p');
+                    p.className = 'text-muted text-center mt-3 no-results-message';
+                    p.textContent = showRouteOnly ? 'No hay ciudades en la ruta actual.' : 'No hay ciudades para mostrar.';
+                    listContainer.appendChild(p);
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
         }
 
         async function calculateRoute() {
@@ -868,26 +900,35 @@
         }
 
          function highlightRouteMarkers(cityIdsInRoute) {
+             const showRouteOnly = document.getElementById('showRouteOnly').checked;
+    
+             // First remove all markers if we're showing route only
+             if (showRouteOnly) {
+                 Object.values(cityMarkers).forEach(marker => marker.remove());
+             }
+    
+             // Then add back only the markers we want to show
              Object.entries(cityMarkers).forEach(([id, marker]) => {
                  const cityIdNum = parseInt(id);
                  const isInRoute = cityIdsInRoute.includes(cityIdNum);
-
-                 // Cambiar opacidad o estilo para resaltar
-                 marker.setOpacity(isInRoute ? 1.0 : 0.5); // Marcadores en ruta más opacos
-
-                  // Si no se está mostrando solo la ruta, todos deben ser visibles
-                 if (!document.getElementById('showRouteOnly').checked) {
-                      marker.setOpacity(1.0);
+        
+                 if (showRouteOnly) {
+                     // Only add markers that are in the route
+                     if (isInRoute) {
+                         marker.setOpacity(1.0);
+                         marker.addTo(map);
+                     }
+                 } else {
+                     // Show all markers but highlight those in the route
+                     marker.setOpacity(isInRoute ? 1.0 : 0.5);
+                     marker.addTo(map);
                  }
-                 // Podrías cambiar el icono también si quisieras
-                 // marker.setIcon(isInRoute ? createMarkerIcon(...) : createMarkerIcon(...));
              });
          }
 
-
         function displayRoute(routeData) {
              routeLayer.clearLayers(); // Limpiar capa de ruta (líneas, marcadores especiales)
-
+    
              if (!routeData || !routeData.cities || routeData.cities.length === 0) {
                 console.warn("No hay datos de ruta para mostrar.");
                  // Volver a mostrar todos los marcadores base
@@ -905,10 +946,19 @@
                 smoothFactor: 1
             }).addTo(routeLayer);
 
-            // Agregar marcadores de todas las ciudades (para popups) y resaltar los de la ruta
-             displayCitiesOnMap(Object.values(cityData)); // Redibuja todos los marcadores base
-             highlightRouteMarkers(routeData.path); // Resalta los que están en la ruta
-
+            // Si estamos mostrando solo la ruta, solo mostrar las ciudades de la ruta
+            const showRouteOnly = document.getElementById('showRouteOnly').checked;
+    
+            if (showRouteOnly && routeData.cities) {
+                // Mostrar solo las ciudades en la ruta
+                displayCitiesOnMap(routeData.cities);
+            } else {
+                // Mostrar todas las ciudades
+                displayCitiesOnMap(Object.values(cityData));
+            }
+    
+            // Resaltar los marcadores de la ruta
+            highlightRouteMarkers(routeData.path);
 
              // Marcadores especiales para inicio y fin (sobre los marcadores base)
             const startCity = routeData.cities[0];
