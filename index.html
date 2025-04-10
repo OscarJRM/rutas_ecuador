@@ -24,6 +24,11 @@
             --border-radius: 0.5rem;
             --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             --box-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --danger-color: #dc3545;
+            --danger-hover: #bd2130;
+            --warning-color: #ffc107;
+            --warning-hover: #e0a800;
+            --border-radius-sm: 0.25rem;
         }
 
         body {
@@ -220,6 +225,58 @@
              box-shadow: var(--box-shadow);
         }
 
+        /* Estilos para botones de acciones */
+        .btn-action {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            line-height: 1;
+            border-radius: var(--border-radius-sm);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 0.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-action:hover {
+            transform: scale(1.1);
+        }
+
+        .btn-action i {
+            font-size: 1rem;
+        }
+
+        /* Colores personalizados para los botones */
+        .btn-outline-view {
+            color: var(--info-color);
+            border-color: var(--info-color);
+        }
+
+        .btn-outline-view:hover {
+            color: white;
+            background-color: var(--info-color);
+        }
+
+        .btn-outline-edit {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-edit:hover {
+            color: white;
+            background-color: var(--primary-color);
+        }
+
+        .btn-outline-delete {
+            color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+
+        .btn-outline-delete:hover {
+            color: white;
+            background-color: var(--danger-color);
+        }
     </style>
 </head>
 
@@ -420,6 +477,32 @@
         </div>
     </div>
 
+    <!-- Agregar el modal para confirmar eliminación antes del cierre del body -->
+    <div class="modal fade" id="deleteCityModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: var(--border-radius);">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Confirmar Eliminación</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="deleteCityId">
+                    <p>¿Está seguro que desea eliminar la ciudad <strong id="deleteCityName"></strong>?</p>
+                    <div class="alert alert-danger">
+                        <p class="mb-0">⚠️ Esta acción no se puede deshacer.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <span class="spinner-border spinner-border-sm d-none me-1" role="status" aria-hidden="true"></span>
+                        Eliminar Ciudad
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
@@ -526,6 +609,16 @@
                     await updateCity();
                 } finally {
                     setLoadingState('saveCityEditBtn', false);
+                }
+            });
+
+            // Añadir este listener al setupEventListeners
+            document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+                setLoadingState('confirmDeleteBtn', true);
+                try {
+                    await deleteCity();
+                } finally {
+                    setLoadingState('confirmDeleteBtn', false);
                 }
             });
         }
@@ -646,8 +739,9 @@
                         <span class="badge bg-secondary rounded-pill ms-2">ID: ${city.id}</span>
                     </div>
                     <div class="city-actions">
-                        <button class="btn btn-sm btn-outline-info city-view-btn" title="Ver ciudad"><i>👁️</i></button>
-                        <button class="btn btn-sm btn-outline-primary city-edit-btn ms-1" title="Editar ciudad"><i>✏️</i></button>
+                        <button class="btn btn-action btn-outline-view city-view-btn" title="Ver ciudad">👁️</button>
+                        <button class="btn btn-action btn-outline-edit city-edit-btn" title="Editar ciudad">✏️</button>
+                        <button class="btn btn-action btn-outline-delete city-delete-btn" title="Eliminar ciudad">🗑️</button>
                     </div>
                 `;
 
@@ -671,6 +765,13 @@
                 editBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     openEditCityModal(city);
+                });
+                
+                // Botón para eliminar ciudad
+                const deleteBtn = item.querySelector('.city-delete-btn');
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openDeleteCityModal(city);
                 });
 
                 listContainer.appendChild(item);
@@ -1004,6 +1105,53 @@
                 Math.sin(dLon / 2) * Math.sin(dLon / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             return R * c; // Distancia en km
+        }
+
+        // Agregar la función para abrir el modal de eliminación
+        function openDeleteCityModal(city) {
+            document.getElementById('deleteCityId').value = city.id;
+            document.getElementById('deleteCityName').textContent = city.nombre;
+            
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteCityModal'));
+            deleteModal.show();
+        }
+        
+        // Agregar función para eliminar ciudad
+        async function deleteCity() {
+            const cityId = document.getElementById('deleteCityId').value;
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:5050/api/cities/${cityId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok || result.error) {
+                    throw new Error(result.error || `Error ${response.status}: No se pudo eliminar la ciudad`);
+                }
+                
+                // Cerrar modal
+                bootstrap.Modal.getInstance(document.getElementById('deleteCityModal')).hide();
+                
+                // Eliminar ciudad de datos locales
+                delete cityData[cityId];
+                
+                // Si la ciudad estaba en la ruta actual, resetear la ruta
+                if (currentRoute && currentRoute.path && currentRoute.path.includes(parseInt(cityId))) {
+                    routeLayer.clearLayers();
+                    currentRoute = null;
+                    document.getElementById('routeResults').classList.remove('show');
+                }
+                
+                await loadCities(); // Recargar ciudades
+                
+                showToast('Éxito', `Ciudad eliminada correctamente.`, 'success');
+                
+            } catch (error) {
+                console.error('Error al eliminar ciudad:', error);
+                showToast('Error al Eliminar', error.message, 'error');
+            }
         }
     </script>
 </body>
