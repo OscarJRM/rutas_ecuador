@@ -278,3 +278,7 @@ def calculate_route():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5050)
+
+
+# Nota: Asegúrate de que la base de datos PostgreSQL esté en funcionamiento y que la tabla 'ciudades' exista con los campos adecuados.
+# Asegúrate de tener las librerías necesarias instaladas:
